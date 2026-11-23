@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Пешеходный спидометр</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Barlow:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eceae4;--card:#f8f7f3;--ink:#1d2024;--mute:#6b6f76;--line:#d3d0c7;--sig:#0f9d58;--warn:#d98b00;--bad:#d1432f;
+ color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17191c;--card:#202328;--ink:#f1f0ec;--mute:#9a9ea6;--line:#34383f;--sig:#3ddc84;--warn:#ffb020;--bad:#ff6b55;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#17191c;--card:#202328;--ink:#f1f0ec;--mute:#9a9ea6;--line:#34383f;--sig:#3ddc84;--warn:#ffb020;--bad:#ff6b55;color-scheme:dark}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.4 Barlow,system-ui,sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px 14px 40px}
+h1{font:700 22px/1.1 "Barlow Condensed",system-ui,sans-serif;margin:4px 0 12px;letter-spacing:.02em}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.gauge{position:relative;padding:10px 10px 6px}
+svg{display:block;width:100%;height:auto}
+.track{fill:none;stroke:var(--line);stroke-width:14;stroke-linecap:butt}
+.prog{fill:none;stroke:var(--sig);stroke-width:14;stroke-linecap:butt;transition:stroke-dashoffset .35s ease-out,stroke .3s}
+.tick{stroke:var(--mute);stroke-width:1.5}
+.tl{fill:var(--mute);font:500 10px Barlow,sans-serif;text-anchor:middle}
+.read{position:absolute;left:0;right:0;top:44%;text-align:center;pointer-events:none}
+.num{font:700 clamp(64px,22vw,96px)/.9 "Barlow Condensed",system-ui,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.unit{font:500 15px Barlow,sans-serif;color:var(--mute)}
+.cls{text-align:center;font:700 18px "Barlow Condensed",sans-serif;margin:0 0 4px;color:var(--sig);min-height:22px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.m{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 6px;text-align:center}
+.m b{display:block;font:700 22px/1.1 "Barlow Condensed",sans-serif;font-variant-numeric:tabular-nums}
+.m span{font-size:12px;color:var(--mute)}
+.btns{display:flex;gap:8px;margin:12px 0}
+button{font:700 18px "Barlow Condensed",sans-serif;letter-spacing:.03em;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:12px 10px;cursor:pointer;min-height:48px}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--sig);outline-offset:2px}
+#go{flex:2;background:var(--sig);color:#fff;border-color:var(--sig)}
+#rst{flex:1}
+.status{font-size:13px;color:var(--mute);text-align:center;min-height:18px}
+details{margin-top:10px}
+summary{cursor:pointer;font:700 17px "Barlow Condensed",sans-serif;padding:8px 2px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line)}
+.row input,.row select{width:96px;font:inherit;padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.row input[type=checkbox]{width:22px;height:22px}
+ol{margin:6px 0 0;padding-left:0;list-style:none}
+li{display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.note{font-size:12px;color:var(--mute);margin-top:10px}
+</style>
+</head>
+<body>
+<main>
+<h1>Пешеходный спидометр</h1>
+<div class="card gauge">
+  <svg viewBox="0 0 200 175" aria-hidden="true"><path id="trk" class="track"/><path id="prg" class="prog"/><g id="ticks"></g></svg>
+  <div class="read"><div class="num" id="num" aria-live="off">0.00</div><div class="unit" id="unit">км/ч</div></div>
+</div>
+<p class="cls" id="cls">Стоим на месте</p>
+<div class="grid">
+  <div class="m"><b id="pace">—</b><span id="paceL">темп, мин/км</span></div>
+  <div class="m"><b id="dist">0.000</b><span id="distL">дистанция, км</span></div>
+  <div class="m"><b id="time">00:00</b><span>время</span></div>
+  <div class="m"><b id="avg">0.00</b><span id="avgL">средняя, км/ч</span></div>
+  <div class="m"><b id="max">0.00</b><span id="maxL">максимум, км/ч</span></div>
+  <div class="m"><b id="steps">0</b><span>шаги (оценка)</span></div>
+  <div class="m"><b id="kcal">0</b><span>ккал</span></div>
+  <div class="m"><b id="mov">00:00</b><span>в движении</span></div>
+  <div class="m"><b id="acc">—</b><span>точность GPS, м</span></div>
+</div>
+<div class="btns"><button id="go">Старт</button><button id="rst">Сброс</button></div>
+<div class="status" id="status">Нажмите «Старт» и разрешите доступ к геолокации.</div>
+
+<details class="card"><summary>Отрезки</summary><ol id="splits"><li><span style="color:var(--mute)">Пока нет полных отрезков</span></li></ol></details>
+
+<details class="card" open><summary>Настройки</summary>
+  <div class="row"><label for="unitSel">Единицы</label><select id="unitSel"><option value="kmh">км/ч, км</option><option value="mph">миль/ч, мили</option></select></div>
+  <div class="row"><label for="wt">Вес, кг</label><input id="wt" type="number" min="30" max="250" inputmode="decimal"></div>
+  <div class="row"><label for="ht">Рост, см</label><input id="ht" type="number" min="100" max="230" inputmode="decimal"></div>
+  <div class="row"><label for="tmin">Целевая скорость от, км/ч</label><input id="tmin" type="number" min="0" step="0.1" inputmode="decimal"></div>
+  <div class="row"><label for="tmax">Целевая скорость до, км/ч</label><input id="tmax" type="number" min="0" step="0.1" inputmode="decimal"></div>
+  <div class="row"><label for="beep">Сигнал при выходе из диапазона</label><input id="beep" type="checkbox"></div>
+  <div class="row"><label for="demoB">Проверка без GPS</label><button id="demoB" type="button" style="min-height:40px;padding:6px 12px">Демо</button></div>
+</details>
+<p class="note">На экране две цифры после запятой, но реальная точность определяется GPS: на ходу она обычно около 0,1–0,3 км/ч. Шаги и калории считаются по росту, весу и скорости, это оценка. Если страница не получает геолокацию внутри окна просмотра, откройте её по ссылке в отдельной вкладке.</p>
+</main>
+
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)};
+var cfg={unit:'kmh',w:70,h:175,tmin:0,tmax:0,beep:false};
+try{var sv=JSON.parse(localStorage.getItem('pedspeed')||'{}');for(var k in sv)cfg[k]=sv[k]}catch(e){}
+function save(){try{localStorage.setItem('pedspeed',JSON.stringify(cfg))}catch(e){}}
+var S;function fresh(){S={run:false,elapsed:0,moving:0,dist:0,max:0,kcal:0,last:null,spd:0,lastFix:0,lastTick:0,splits:[],mark:0,markT:0,lastBeep:0,acc:null}}
+fresh();
+var watchId=null,demoT=null,wake=null,scale=10;
+var MI=1.609344,KMH_MI=0.621371;
+var isMi=function(){return cfg.unit==='mph'};
+var cv=function(v){return isMi()?v*KMH_MI:v};
+
+/* Gauge */
+var CX=100,CY=100,R=82,A0=150,SW=240;
+function pt(a,r){var t=a*Math.PI/180;return[CX+r*Math.cos(t),CY+r*Math.sin(t)]}
+function arc(){var a=pt(A0,R),b=pt(A0+SW,R);return'M'+a[0]+' '+a[1]+' A'+R+' '+R+' 0 1 1 '+b[0]+' '+b[1]}
+var prg=$('prg'),trk=$('trk');trk.setAttribute('d',arc());prg.setAttribute('d',arc());
+var LEN=prg.getTotalLength();prg.style.strokeDasharray=LEN;prg.style.strokeDashoffset=LEN;
+function ticks(){
+  var g=$('ticks'),h='',step=scale<=10?1:scale<=20?2:5,n=scale/ (step/ (scale<=10?2:1));
+  var minor=scale<=10?0.5:step;
+  for(var v=0;v<=scale+1e-6;v+=minor){
+    var a=A0+SW*v/scale,major=Math.abs(v/step-Math.round(v/step))<1e-6,p1=pt(a,R-11),p2=pt(a,R-(major?19:15));
+    h+='<line class="tick" x1="'+p1[0]+'" y1="'+p1[1]+'" x2="'+p2[0]+'" y2="'+p2[1]+'"/>';
+    if(major){var p=pt(a,R-29);h+='<text class="tl" x="'+p[0]+'" y="'+(p[1]+3)+'">'+Math.round(v)+'</text>'}
+  }
+  g.innerHTML=h;
+}
+ticks();
+
+/* Helpers */
+function fmt(ms){var s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor(s%3600/60),c=s%60,p=function(x){return(x<10?'0':'')+x};return(h?h+':':'')+p(m)+':'+p(c)}
+function hav(a,b,c,d){var r=6371000,t=Math.PI/180,x=(c-a)*t,y=(d-b)*t,q=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a*t)*Math.cos(c*t)*Math.sin(y/2)*Math.sin(y/2);return 2*r*Math.asin(Math.sqrt(q))}
+function met(v){return v<2?2:v<3.2?2.8:v<4.0?3.0:v<4.8?3.5:v<5.6?4.3:v<6.4?5.0:v<7.2?7.0:v<8.5?8.3:v<10?9.8:v<12?11:12.5}
+function label(v){
+  if(v<0.5)return['Стоим на месте','var(--mute)'];
+  if(v<2.5)return['Медленный шаг','var(--warn)'];
+  if(v<4.0)return['Прогулочный шаг','var(--sig)'];
+  if(v<5.5)return['Бодрый шаг','var(--sig)'];
+  if(v<7.0)return['Быстрая ходьба','var(--sig)'];
+  if(v<9.0)return['Скороходство или бег трусцой','var(--warn)'];
+  return['Бег','var(--bad)'];
+}
+
+/* Fix handling */
+function onFix(lat,lon,spd,acc,ts){
+  S.acc=acc;$('acc').textContent=acc==null?'—':Math.round(acc);
+  if(!S.run)return;
+  if(acc!=null&&acc>50){status('Слабый сигнал GPS, точность '+Math.round(acc)+' м');return}
+  status('');
+  var v=(spd!=null&&!isNaN(spd))?spd*3.6:null;
+  if(S.last){
+    var dt=(ts-S.last.ts)/1000,d=hav(S.last.lat,S.last.lon,lat,lon);
+    if(dt>0&&v==null)v=d/dt*3.6;
+    if(dt>0&&(acc==null||acc<=30)&&d>=1&&(v||0)>=0.5&&d/dt<8)S.dist+=d/1000;
+  }
+  S.last={lat:lat,lon:lon,ts:ts};S.lastFix=Date.now();
+  if(v==null||v<0.4)v=0;
+  S.spd=S.spd?S.spd+0.4*(v-S.spd):v;
+  if(v===0&&S.spd<0.15)S.spd=0;
+  if(S.moving>4000&&S.spd>S.max)S.max=S.spd;
+}
+function status(t){$('status').textContent=t}
+
+/* Tick */
+function tick(){
+  var now=Date.now(),dt=now-S.lastTick;S.lastTick=now;
+  if(!S.run)return;
+  S.elapsed+=dt;
+  if(S.lastFix&&now-S.lastFix>6000){S.spd*=0.8;if(S.spd<0.15)S.spd=0}
+  if(S.spd>=0.5){S.moving+=dt;S.kcal+=met(S.spd)*cfg.w*dt/3.6e6}
+  var u=isMi()?MI:1;
+  while(S.dist>=(S.splits.length+1)*u){
+    S.splits.push({t:S.moving-S.markT,avg:u/((S.moving-S.markT)/3.6e6)});S.markT=S.moving;drawSplits();
+  }
+  alerts(now);
+  render();
+}
+function alerts(now){
+  if(!cfg.beep||S.spd<0.5||now-S.lastBeep<8000)return;
+  var lo=cfg.tmin>0&&S.spd<cfg.tmin,hi=cfg.tmax>0&&S.spd>cfg.tmax;
+  if(!lo&&!hi)return;
+  S.lastBeep=now;
+  try{var c=beep.ctx||(beep.ctx=new (window.AudioContext||window.webkitAudioContext)()),o=c.createOscillator(),g=c.createGain();
+    o.frequency.value=hi?880:330;g.gain.value=.15;o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+.25)}catch(e){}
+  try{navigator.vibrate&&navigator.vibrate(hi?[120,80,120]:300)}catch(e){}
+}
+function beep(){}
+
+/* Render */
+function render(){
+  var v=cv(S.spd);
+  var disp=isMi()?v:S.spd;
+  $('num').textContent=disp.toFixed(2);
+  var needScale=disp>scale*0.95?(scale<10?10:scale<20?20:30):(disp<scale*0.4&&S.max&&cv(S.max)<scale*0.5&&scale>10?(scale>20?20:10):scale);
+  if(needScale!==scale&&!(needScale<scale&&cv(S.max)>scale*0.5)){scale=needScale;ticks()}
+  var f=Math.min(1,disp/scale);prg.style.strokeDashoffset=LEN*(1-f);
+  var L=label(S.spd);$('cls').textContent=L[0];$('cls').style.color=L[1];prg.style.stroke=L[1]==='var(--mute)'?'var(--line)':L[1];
+  var tgt=cfg.tmin>0&&S.spd>=0.5&&S.spd<cfg.tmin||cfg.tmax>0&&S.spd>cfg.tmax;
+  if(tgt)prg.style.stroke='var(--bad)';
+  if(S.spd>=0.5){var pm=60/disp,mm=Math.floor(pm),ss=Math.round((pm-mm)*60);if(ss===60){mm++;ss=0}$('pace').textContent=mm+':'+(ss<10?'0':'')+ss}else $('pace').textContent='—';
+  var d=isMi()?S.dist/MI:S.dist;$('dist').textContent=d.toFixed(3);
+  $('time').textContent=fmt(S.elapsed);$('mov').textContent=fmt(S.moving);
+  var avg=S.moving>1000?S.dist/(S.moving/3.6e6):0;$('avg').textContent=cv(avg).toFixed(2);
+  $('max').textContent=cv(S.max).toFixed(2);
+  var stride=cfg.h*0.415/100;$('steps').textContent=Math.round(S.dist*1000/stride).toLocaleString('ru-RU');
+  $('kcal').textContent=Math.round(S.kcal);
+}
+function labels(){
+  var m=isMi();$('unit').textContent=m?'миль/ч':'км/ч';
+  $('paceL').textContent='темп, мин/'+(m?'миля':'км');$('distL').textContent='дистанция, '+(m?'мили':'км');
+  $('avgL').textContent='средняя, '+(m?'миль/ч':'км/ч');$('maxL').textContent='максимум, '+(m?'миль/ч':'км/ч');
+}
+function drawSplits(){
+  var el=$('splits'),m=isMi();
+  if(!S.splits.length){el.innerHTML='<li><span style="color:var(--mute)">Пока нет полных отрезков</span></li>';return}
+  el.innerHTML=S.splits.map(function(s,i){return'<li><span>'+(i+1)+' '+(m?'миля':'км')+'</span><span>'+fmt(s.t)+'</span><span>'+cv(s.avg).toFixed(2)+' '+(m?'миль/ч':'км/ч')+'</span></li>'}).join('');
+}
+
+/* Start / pause / reset */
+function startGPS(){
+  if(!navigator.geolocation){status('Геолокация не поддерживается. Попробуйте режим «Демо».');return false}
+  watchId=navigator.geolocation.watchPosition(function(p){var c=p.coords;onFix(c.latitude,c.longitude,c.speed,c.accuracy,p.timestamp)},
+    function(e){status(e.code===1?'Доступ к геолокации запрещён. Разрешите его в настройках браузера или откройте страницу в отдельной вкладке.':'Не удаётся получить позицию. Выйдите на открытое место.')},
+    {enableHighAccuracy:true,maximumAge:0,timeout:15000});
+  return true;
+}
+function stopSrc(){if(watchId!=null){navigator.geolocation.clearWatch(watchId);watchId=null}if(demoT){clearInterval(demoT);demoT=null}}
+function lock(){try{if(navigator.wakeLock)navigator.wakeLock.request('screen').then(function(w){wake=w}).catch(function(){})}catch(e){}}
+function unlock(){try{wake&&wake.release();wake=null}catch(e){}}
+$('go').onclick=function(){
+  if(S.run){S.run=false;stopSrc();unlock();S.spd=0;$('go').textContent='Продолжить';status('Пауза');render();return}
+  if(!demoT&&!startGPS())return;
+  S.run=true;S.last=null;S.lastTick=Date.now();$('go').textContent='Пауза';status('Ищем сигнал GPS…');lock();
+};
+$('rst').onclick=function(){stopSrc();unlock();fresh();scale=10;ticks();$('go').textContent='Старт';status('Сброшено');drawSplits();render()};
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&S.run)lock()});
+
+/* Demo */
+$('demoB').onclick=function(){
+  stopSrc();fresh();scale=10;ticks();drawSplits();
+  var lat=60.1699,lon=24.9384,t=0,target=5.2,cur=0;
+  S.run=true;S.lastTick=Date.now();$('go').textContent='Пауза';status('Демо: имитация прогулки');
+  demoT=setInterval(function(){
+    t++;if(t%6===0)target=[0,3.4,5.2,6.4,4.6,7.8][Math.floor(Math.random()*6)];
+    cur+=(target-cur)*.25+(Math.random()-.5)*.12;if(cur<0)cur=0;
+    var step=cur/3.6;lat+=step*0.00000899;
+    onFix(lat,lon,cur/3.6,8,Date.now());
+  },1000);
+};
+
+/* Settings */
+function bind(id,key,num){var e=$(id);e.value=cfg[key]||'';e.onchange=function(){var x=num?parseFloat(e.value):e.value;cfg[key]=(num&&isNaN(x))?0:x;if(key==='w'&&!cfg.w)cfg.w=70;if(key==='h'&&!cfg.h)cfg.h=175;save()}}
+bind('wt','w',1);bind('ht','h',1);bind('tmin','tmin',1);bind('tmax','tmax',1);
+$('unitSel').value=cfg.unit;$('unitSel').onchange=function(){cfg.unit=this.value;save();labels();drawSplits();ticks();render()};
+$('beep').checked=!!cfg.beep;$('beep').onchange=function(){cfg.beep=this.checked;save();if(this.checked){try{beep.ctx=beep.ctx||new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}};
+labels();render();
+setInterval(tick,200);
+})();
+</script>
+</body>
+</html>
